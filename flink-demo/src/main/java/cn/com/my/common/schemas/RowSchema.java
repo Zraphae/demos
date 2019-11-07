@@ -1,4 +1,4 @@
-package my.common.schemas;
+package cn.com.my.common.schemas;
 
 import com.google.gson.Gson;
 import org.apache.flink.api.common.serialization.DeserializationSchema;

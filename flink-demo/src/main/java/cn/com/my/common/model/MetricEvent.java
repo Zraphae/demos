@@ -1,4 +1,4 @@
-package my.common.model;
+package cn.com.my.common.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

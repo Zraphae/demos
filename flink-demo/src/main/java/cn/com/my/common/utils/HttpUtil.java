@@ -1,4 +1,4 @@
-package my.common.utils;
+package cn.com.my.common.utils;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpStatus;

@@ -1,4 +1,4 @@
-package my;
+package cn.com.my;
 
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.typeinfo.TypeInformation;

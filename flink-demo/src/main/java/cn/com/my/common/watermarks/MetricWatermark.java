@@ -1,4 +1,4 @@
-package my.common.watermarks;
+package cn.com.my.common.watermarks;
 
 import cn.com.my.common.model.MetricEvent;
 import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;

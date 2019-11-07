@@ -1,4 +1,4 @@
-package my.common.constant;
+package cn.com.my.common.constant;
 
 
 

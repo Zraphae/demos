@@ -2,8 +2,8 @@ package cn.com.my.demo;
 
 import com.google.gson.JsonObject;
 import lombok.extern.slf4j.Slf4j;
-import my.common.utils.GsonUtil;
-import my.common.utils.OrcBatchReader;
+import cn.com.my.common.utils.GsonUtil;
+import cn.com.my.common.utils.OrcBatchReader;
 import org.apache.commons.beanutils.DynaBean;
 import org.apache.commons.beanutils.LazyDynaBean;
 import org.apache.commons.beanutils.LazyDynaClass;

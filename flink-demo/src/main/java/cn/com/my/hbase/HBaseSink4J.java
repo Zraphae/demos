@@ -1,4 +1,4 @@
-package my.hbase;
+package cn.com.my.hbase;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.typeinfo.TypeInformation;

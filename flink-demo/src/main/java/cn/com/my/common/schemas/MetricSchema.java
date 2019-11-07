@@ -1,4 +1,4 @@
-package my.common.schemas;
+package cn.com.my.common.schemas;
 
 import cn.com.my.common.model.MetricEvent;
 import com.google.gson.Gson;

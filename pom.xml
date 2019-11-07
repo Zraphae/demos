@@ -14,6 +14,14 @@
     </modules>
 
 
+    <properties>
+        <maven.assembly.version>3.1.1</maven.assembly.version>
+        <java.version>1.8</java.version>
+        <scala.version>2.12.8</scala.version>
+        <scala.binary.version>2.12</scala.binary.version>
+
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -35,6 +43,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
+                <version>${maven.assembly.version}</version>
                 <configuration>
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
@@ -60,7 +69,7 @@
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
                 <configuration>
-                    <scalaVersion>2.12</scalaVersion>
+                    <scalaVersion>${scala.binary.version}</scalaVersion>
                 </configuration>
             </plugin>
         </plugins>

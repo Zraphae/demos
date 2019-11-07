@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package my.common.utils;
+package cn.com.my.common.utils;
 
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;

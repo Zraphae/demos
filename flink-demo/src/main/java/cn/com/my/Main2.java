@@ -1,4 +1,4 @@
-package my;
+package cn.com.my;
 
 import cn.com.my.common.utils.ExecutionEnvUtil;
 import cn.com.my.common.utils.GsonUtil;

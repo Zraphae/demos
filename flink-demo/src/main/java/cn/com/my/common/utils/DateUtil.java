@@ -1,4 +1,4 @@
-package my.common.utils;
+package cn.com.my.common.utils;
 
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

@@ -1,4 +1,4 @@
-package my.common.utils;
+package cn.com.my.common.utils;
 
 import cn.com.my.common.constant.PropertiesConstants;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;

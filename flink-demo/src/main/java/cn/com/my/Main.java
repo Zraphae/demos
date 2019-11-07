@@ -1,4 +1,4 @@
-package my;
+package cn.com.my;
 
 import cn.com.my.common.model.MetricEvent;
 import cn.com.my.common.schemas.MetricSchema;

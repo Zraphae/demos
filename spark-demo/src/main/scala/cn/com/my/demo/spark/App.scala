@@ -2,16 +2,16 @@ package cn.com.my.demo.spark
 
 import java.util.UUID
 
-import cn.com.my.demo.spark.utils.HexStringPartition
+import cn.com.my.demo.spark.utils.{HexStringPartition, ParameterTool}
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
+import org.apache.hadoop.hbase.client.ConnectionFactory
 import org.apache.hadoop.hbase.{HBaseConfiguration, KeyValue, TableName}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-import org.apache.hadoop.hbase.mapreduce.{HFileOutputFormat2, TableOutputFormat}
+import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat2
 import org.apache.hadoop.hbase.tool.LoadIncrementalHFiles
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.{StringType, StructField, StructType}
 
 
 object App {
@@ -19,96 +19,114 @@ object App {
 
   def main(args: Array[String]) {
 
+    // Read parameters from command line
+    val params = ParameterTool.fromArgs(args)
+
+//    if (params.getNumberOfParameters() < -1) {
+//      println("\nUsage: exportHiveData2HBase " +
+//        "--app.name <appName> " +
+//        "--hive.table.name <hiveTableName> " +
+//        "--hbase.table.name <hbaseTableName> " +
+//        "--hive.metastore.uris <hive.metastore.uris> " +
+//        "--hbase.zookeeper.quorum <hbase.zookeeper.quorum> " +
+//        "--hbase.family.name <hbase.family.name> " +
+//        "--hfile.path <hFilePath>")
+//      return
+//    }
+
+    val hiveMetaStoreUris = params.get("hive.metastore.uris", "thrift://127.0.0.1:9083")
+    val appName = params.get("app.name", "exportHiveData2HBase")
+    val hiveTableName = params.get("hive.table.name", "employee")
+    val hbaseTableName = params.get("hbase.table.name", "person")
+    val hFilePath = params.get("hfile.path", "hdfs://pengzhaos-MacBook-Pro.local:9000/hfile")
+    val zookeeperQuorum = params.get("hbase.zookeeper.quorum", "127.0.0.1")
+    val familyName = params.get("hbase.family.name", "info")
+
+    val stagingFolder = s"${hFilePath}/${hiveTableName}"
 
     val spark = SparkSession.builder
       .master("local")
-      .appName("test")
+      .appName(appName)
       .config("spark.sql.warehouse.dir", "/user/hive/warehouse")
-      .config("hive.metastore.uris", "thrift://127.0.0.1:9083")
+      .config("hive.metastore.uris", hiveMetaStoreUris)
       .enableHiveSupport()
       .getOrCreate()
 
-    val tableName = "person"
+    val dataset = spark.sql(s"select * from $hiveTableName")
+
+
+    hdfsRm(stagingFolder)
+
     val hConf = HBaseConfiguration.create
     hConf.set("hbase.zookeeper.property.clientPort", "2181")
-    hConf.set("hbase.zookeeper.quorum", "127.0.0.1")
-    hConf.set("hbase.master", "127.0.0.1:16030")
-    hConf.set(TableOutputFormat.OUTPUT_TABLE, tableName)
-    hConf.set("hbase.mapreduce.hfileoutputformat.table.name", tableName)
+    hConf.set("hbase.zookeeper.quorum", zookeeperQuorum)
+    hConf.set("hbase.mapreduce.hfileoutputformat.table.name", hbaseTableName)
 
-    val tableDataSet = spark.sql("select * from test.person")
-    tableDataSet.show(10)
+    val sortedSchema = spark.sql(s"desc ${hiveTableName}").sort("col_name")
+    sortedSchema.filter(!_.getString(0).contains("#")).distinct().show()
 
+    import spark.implicits._
+    val sortedColName = sortedSchema.map(struct => struct.getString(0)).collect().mkString(",")
+    val sortedSchemaWithIdx = sortedSchema.rdd.zipWithIndex()
+    val cols = sortedSchemaWithIdx.collect()
 
-    val defaultFamilyName = "info"
+    var idKeyIdx = 0;
+    for (i <- 1 to (cols.length - 1)) {
+      if("id".equals(cols(i)._1.getString(0))){
+        idKeyIdx = cols(i)._2.toInt
+      }
+    }
+
+    val sql = s"select ${sortedColName} from ${hiveTableName}"
+    val tableDataSet = spark.sql(sql)
+
+    val defaultFamilyNameBytes = Bytes.toBytes(familyName)
     val defaultPartitions = 10
+    val defaultNullStr = "NULL"
 
-    //    import spark.implicits._
     val pairsDataSet = tableDataSet.rdd.map(record => (UUID.randomUUID().toString, record))
+
     val saltedRDD = pairsDataSet.repartitionAndSortWithinPartitions(new HexStringPartition(defaultPartitions))
 
-    val rdd = saltedRDD.map(r => {
-      val rowKey = r._1
-      val value = r._2
-      val kv: KeyValue = new KeyValue(Bytes.toBytes(rowKey), Bytes.toBytes(defaultFamilyName), Bytes.toBytes("111"), Bytes.toBytes("colName"))
-      (new ImmutableBytesWritable(Bytes.add(Bytes.toBytes(rowKey), Bytes.toBytes(r._1))), kv)
+
+    val rdd: RDD[(ImmutableBytesWritable, Seq[KeyValue])] = saltedRDD.map(record => {
+      var kvList: Seq[KeyValue] = List()
+      val rowKey = Bytes.toBytes(record._1)
+      for (i <- 1 to (cols.length - 1)) {
+        val colNameBytes = Bytes.toBytes(cols(i)._1.getString(0))
+        record._2.getString(cols(i)._2.toInt) match {
+          case null => {
+            val keyValue = new KeyValue(rowKey, defaultFamilyNameBytes, colNameBytes, Bytes.toBytes(defaultNullStr))
+            kvList = kvList :+ keyValue
+          }
+          case colValue: String => {
+            val keyValue = new KeyValue(rowKey, defaultFamilyNameBytes, colNameBytes, Bytes.toBytes(colValue.toString))
+            kvList = kvList :+ keyValue
+          }
+        }
+      }
+      (new ImmutableBytesWritable(rowKey), kvList)
     })
 
-
-    val stagingFolder = "hdfs://pengzhaos-MacBook-Pro.local:9000/hfile/blog.hfile"
-    rdd.saveAsNewAPIHadoopFile(stagingFolder,
+    val hFileRdd: RDD[(ImmutableBytesWritable, KeyValue)] = rdd.flatMapValues(_.iterator)
+    hFileRdd.saveAsNewAPIHadoopFile(stagingFolder,
       classOf[ImmutableBytesWritable],
       classOf[KeyValue],
       classOf[HFileOutputFormat2],
       hConf)
 
     val conn = ConnectionFactory.createConnection(hConf)
-    val table = conn.getTable(TableName.valueOf(tableName))
+    val table = conn.getTable(TableName.valueOf(hbaseTableName))
     val load = new LoadIncrementalHFiles(hConf)
-    load.doBulkLoad(new Path(stagingFolder), conn.getAdmin, table, conn.getRegionLocator(TableName.valueOf(tableName)))
+    load.doBulkLoad(new Path(stagingFolder), conn.getAdmin, table, conn.getRegionLocator(TableName.valueOf(hbaseTableName)))
+
   }
 
 
-  //    import spark.implicits._
-  //    val schemaString = "id name tel city"
-  //    val fields = schemaString.split(" ")
-  //      .map(fieldName => StructField(fieldName, StringType,nullable = true))
-  //    val schema = StructType(fields)
-
-  //    val usersDF = spark.read.csv("/Users/zhaopeng/data/test_data/data").toDF("id", "name", "tel",  "city")
-  //    usersDF.show()
-
-  //    usersDF.write.format("hive").mode(SaveMode.Append).saveAsTable("test.person")
-
-  // 要保证处于同一个region的数据在同一个partition里面，那么首先我们需要得到table的startkeys
-  // 再根据startKey建立一个分区器
-  // 分区器有两个关键的方法需要去实现
-  // 1. numPartitions 多少个分区
-  // 2. getPartition给一个key，返回其应该在的分区  分区器如下：
-
-  //  private class HFilePartitioner(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegion: Int) extends Partitioner {
-  //    val fraction = 1 max numFilesPerRegion min 128
-  //
-  //    override def getPartition(key: Any): Int = {
-  //      def bytes(n: Any) = n match {
-  //        case s: String => Bytes.toBytes(s)
-  //        case s: Long => Bytes.toBytes(s)
-  //        case s: Int => Bytes.toBytes(s)
-  //      }
-  //
-  //      val h = (key.hashCode() & Int.MaxValue) % fraction
-  //      for (i <- 1 until splits.length)
-  //        if (Bytes.compareTo(bytes(key), splits(i)) < 0) return (i - 1) * fraction + h
-  //
-  //      (splits.length - 1) * fraction + h
-  //    }
-  //
-  //    override def numPartitions: Int = splits.length * fraction
-  //  }
-
-  // 参数splits为table的startKeys
-  // 参数numFilesPerRegion为一个region想要生成多少个hfile，便于理解  先将其设置为1 即一个region生成一个hfile
-  // h可以理解为它在这个region中的第几个hfile（当需要一个region有多个hfile的时候）
-  // 因为startKeys是递增的，所以找到第一个大于key的region，那么其上一个region，这是这个key所在的region
-
+  def hdfsRm(url: String) {
+    val path = new Path(url);
+    val hdfs = org.apache.hadoop.fs.FileSystem.get(
+      new java.net.URI(url), new org.apache.hadoop.conf.Configuration())
+    if (hdfs.exists(path)) hdfs.delete(path, true)
+  }
 }
