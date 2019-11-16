@@ -14,7 +14,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
 
 
-object App {
+object ExportHiveData2HBase {
 
 
   def main(args: Array[String]) {

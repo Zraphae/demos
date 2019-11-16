@@ -13,7 +13,7 @@ import org.apache.spark.sql.{Row, SparkSession}
 import scala.collection.mutable
 
 
-object App2 {
+object ReadHFileData2Hive {
 
   case class CellValue(familyName: String, qualifier: String, value: String, timeStamp: Long)
 
@@ -41,7 +41,7 @@ object App2 {
     val fields = sortedSchema.collect().map(hiveSchema => StructField(hiveSchema.getString(0), StringType, nullable = true))
     val schema = StructType(fields)
 
-    val stagingFolder = "/Users/zhaopeng/Data/test_data/hbase_snapshot/archive/data/default/person/*"
+    val stagingFolder = "/Users/zhaopeng/Data/testDataSet/hbase_snapshot/archive/data/default/person/*"
     val hfileRdd: RDD[(NullWritable, Cell)] = spark.sparkContext.newAPIHadoopFile[NullWritable, Cell, HFileInputFormat](stagingFolder)
     val cellValueRdd: RDD[(String, Iterable[CellValue])] = hfileRdd.values.map(cell => {
       val family = Bytes.toString(CellUtil.cloneFamily(cell))
