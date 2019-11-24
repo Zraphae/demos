@@ -1,22 +1,22 @@
 package cn.com.my.demo.spark
 
-import java.util.Calendar
 
 import cn.com.my.demo.spark.utils.ParameterTool
+import cn.com.my.spark.utils.MyHexRegionSplit
 import org.apache.commons.codec.binary.Base64
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.hbase.client.Scan
-import org.apache.hadoop.hbase.mapreduce.{HFileInputFormat, TableInputFormat, TableOutputFormat, TableSnapshotInputFormat}
+import org.apache.hadoop.hbase.client.{Result, Scan}
+import org.apache.hadoop.hbase.mapreduce.{TableInputFormat, TableSnapshotInputFormat}
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil
-import org.apache.hadoop.hbase.util.{Bytes, RegionSplitter}
-import org.apache.hadoop.hbase.{Cell, CellUtil, HBaseConfiguration, HConstants}
-import org.apache.hadoop.io.NullWritable
+import org.apache.hadoop.hbase.HBaseConfiguration
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable
+import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SparkSession}
 
 import scala.collection.mutable
+
 
 
 object ReadHBaseSnapshot2Hive {
@@ -41,7 +41,6 @@ object ReadHBaseSnapshot2Hive {
       .getOrCreate()
 
 
-
     val hConf = HBaseConfiguration.create()
     hConf.set("fs.defaultFS", "hdfs://pengzhaos-MacBook-Pro.local:9000")
     hConf.set("hbase.rootdir", "/hbase")
@@ -54,17 +53,31 @@ object ReadHBaseSnapshot2Hive {
 
     val path = new Path("/tmp")
     val snapName = "person_snapshot"
-    TableSnapshotInputFormat.setInput(job, snapName, path, RegionSplitter.HexStringSplit, 8)
-
-    val hBaseRDD = spark.sparkContext.newAPIHadoopRDD(job.getConfiguration,
+    TableSnapshotInputFormat.setInput(job, snapName, path, new MyHexRegionSplit, 2)
+    val hBaseRDD  = spark.sparkContext.newAPIHadoopRDD(job.getConfiguration,
       classOf[TableSnapshotInputFormat],
       classOf[org.apache.hadoop.hbase.io.ImmutableBytesWritable],
       classOf[org.apache.hadoop.hbase.client.Result])
 
-    val record_count = hBaseRDD.count()
 
-    println(s"------>$record_count")
+    val schema = spark.table(hiveTableName).schema
+    spark.sparkContext.broadcast(schema)
 
+    val valueRdd = hBaseRDD.values.map(result => {
+      var row = mutable.ListBuffer.empty[String]
+      val familyNameBytes = Bytes.toBytes("info")
+      schema.foreach(structField => {
+        val value = result.getValue(familyNameBytes, Bytes.toBytes(structField.name))
+        if(null == value){
+          row += nullString
+        }else{
+          row += Bytes.toString(value)
+        }
+      })
+      Row.fromSeq(row)
+    })
+
+    spark.createDataFrame(valueRdd, schema).write.format("hive").insertInto("test:test_hive")
 
   }
 

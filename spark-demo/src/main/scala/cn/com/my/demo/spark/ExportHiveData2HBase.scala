@@ -19,20 +19,19 @@ object ExportHiveData2HBase {
 
   def main(args: Array[String]) {
 
-    // Read parameters from command line
     val params = ParameterTool.fromArgs(args)
 
-//    if (params.getNumberOfParameters() < -1) {
-//      println("\nUsage: exportHiveData2HBase " +
-//        "--app.name <appName> " +
-//        "--hive.table.name <hiveTableName> " +
-//        "--hbase.table.name <hbaseTableName> " +
-//        "--hive.metastore.uris <hive.metastore.uris> " +
-//        "--hbase.zookeeper.quorum <hbase.zookeeper.quorum> " +
-//        "--hbase.family.name <hbase.family.name> " +
-//        "--hfile.path <hFilePath>")
-//      return
-//    }
+    if (params.getNumberOfParameters() < -1) {
+      println("\nUsage: exportHiveData2HBase " +
+        "--app.name <appName> " +
+        "--hive.table.name <hiveTableName> " +
+        "--hbase.table.name <hbaseTableName> " +
+        "--hive.metastore.uris <hive.metastore.uris> " +
+        "--hbase.zookeeper.quorum <hbase.zookeeper.quorum> " +
+        "--hbase.family.name <hbase.family.name> " +
+        "--hfile.path <hFilePath>")
+      return
+    }
 
     val hiveMetaStoreUris = params.get("hive.metastore.uris", "thrift://127.0.0.1:9083")
     val appName = params.get("app.name", "exportHiveData2HBase")
@@ -52,8 +51,6 @@ object ExportHiveData2HBase {
       .enableHiveSupport()
       .getOrCreate()
 
-    val dataset = spark.sql(s"select * from $hiveTableName")
-
 
     hdfsRm(stagingFolder)
 
@@ -63,7 +60,7 @@ object ExportHiveData2HBase {
     hConf.set("hbase.mapreduce.hfileoutputformat.table.name", hbaseTableName)
 
     val sortedSchema = spark.sql(s"desc ${hiveTableName}").sort("col_name")
-    sortedSchema.filter(!_.getString(0).contains("#")).distinct().show()
+    sortedSchema.filter(!_.getString(0).contains("#")).distinct()
 
     import spark.implicits._
     val sortedColName = sortedSchema.map(struct => struct.getString(0)).collect().mkString(",")
@@ -123,10 +120,10 @@ object ExportHiveData2HBase {
   }
 
 
-  def hdfsRm(url: String) {
-    val path = new Path(url);
+  def hdfsRm(uri: String) {
+    val path = new Path(uri);
     val hdfs = org.apache.hadoop.fs.FileSystem.get(
-      new java.net.URI(url), new org.apache.hadoop.conf.Configuration())
+      new java.net.URI(uri), new org.apache.hadoop.conf.Configuration())
     if (hdfs.exists(path)) hdfs.delete(path, true)
   }
 }
